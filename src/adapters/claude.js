@@ -18,7 +18,7 @@ export class ClaudeAdapter extends BaseAdapter {
 
   async extractResponse(page) {
     const messages = await page.$$eval(
-      ".font-claude-message",
+      ".font-claude-response",
       (els) => els.map((el) => el.innerText.trim())
     );
     return messages.at(-1) ?? "(no response found)";

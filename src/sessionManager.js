@@ -44,9 +44,9 @@ export async function createSession(botName, options = {}) {
 
   // Close leftover tabs from previous session
   const existingPages = await browser.pages();
-  await Promise.all(existingPages.map((p) => p.close()));
-
-  const page = await browser.newPage();
+  const page = existingPages[0] ?? await browser.newPage();
+  // close any extra tabs beyond the first
+  await Promise.all(existingPages.slice(1).map((p) => p.close()));
 
   await page.setExtraHTTPHeaders({ "Accept-Language": "en-US,en;q=0.9" });
   await page.evaluateOnNewDocument(() => {
