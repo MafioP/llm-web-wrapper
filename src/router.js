@@ -7,6 +7,7 @@ import {
   destroySession,
   getActiveSessions,
   destroyAllSessions,
+  getSession,
 } from "./sessionManager.js";
 import { BOT_NAMES } from "./adapters/index.js";
 
@@ -44,6 +45,13 @@ router.delete("/sessions/:bot", async (req, res) => {
 router.delete("/sessions", async (_req, res) => {
   await destroyAllSessions();
   res.json({ ok: true });
+});
+
+router.get("/screenshot/:bot", async (req, res) => {
+  const session = await getSession(req.params.bot);
+  const buf = await session.page.screenshot({ encoding: "binary" });
+  res.setHeader("Content-Type", "image/png");
+  res.send(buf);
 });
 
 // ── POST /prompt — send a prompt ────────────────────────────────────────────
