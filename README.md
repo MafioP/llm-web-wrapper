@@ -90,3 +90,54 @@ mybот: {
 - Selectors may break when chatbot UIs update — inspect the DOM and update selectors if needed
 - Add delays between rapid prompts to avoid rate limits
 - `puppeteer-extra-plugin-stealth` patches ~20 browser fingerprinting vectors
+
+---
+
+## Docker deployment
+
+### Prerequisites
+
+Before running in Docker you need saved login sessions, since there is no display available. Run locally first for each bot you want to use:
+
+```bash
+HEADLESS=false node cli.js chatgpt
+# log in, then /exit
+HEADLESS=false node cli.js claude
+# log in, then /exit
+```
+
+This saves sessions to `./profiles/` which is mounted into the container.
+
+### Build and run
+
+```bash
+docker compose up --build
+```
+
+### Run in background
+
+```bash
+docker compose up --build -d
+
+# Check logs
+docker compose logs -f
+
+# Stop
+docker compose down
+```
+
+### Configuration
+
+Set environment variables in `docker-compose.yml` or a `.env` file alongside it:
+
+```bash
+PORT=3000       # host port to expose
+```
+
+`HEADLESS` is always forced to `true` inside the container — there is no display.
+
+### Notes
+
+- `./profiles/` is mounted as a volume so login sessions survive restarts
+- Chromium uses system shared memory — the `shm_size: 1gb` in the compose file prevents random crashes
+- The container uses the system-installed Chromium rather than Puppeteer's bundled one, keeping the image smaller

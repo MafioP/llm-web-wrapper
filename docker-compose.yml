@@ -1,0 +1,13 @@
+services:
+  llm-web-wrapper:
+    build: .
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - PORT=3000
+      - HEADLESS=true        # must be true in Docker — no display
+    volumes:
+      - ./profiles:/app/profiles  # persist login sessions across restarts
+    restart: unless-stopped
+    shm_size: 1gb             # Chromium needs extra shared memory
+
