@@ -25,6 +25,15 @@ async function killLeftoverChrome() {
   } catch (_) { }
 }
 
+async function clearProfileLocks(profileDir) {
+  const locks = ["SingletonLock", "SingletonSocket", "SingletonCookie"];
+  for (const lock of locks) {
+    try {
+      fs.unlinkSync(path.join(profileDir, lock));
+    } catch (_) { } // ignore if they don't exist
+  }
+}
+
 
 export async function createSession(botName, options = {}) {
   const adapter = getAdapter(botName); // throws if unknown
@@ -34,6 +43,7 @@ export async function createSession(botName, options = {}) {
 
   const headless = options.headless ?? (process.env.HEADLESS === "true");
   const profileDir = options.profileDir ?? `./profiles/${botName}`;
+  clearProfileLocks(profileDir);
 
   const browser = await puppeteer.launch({
     headless,
