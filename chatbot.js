@@ -5,6 +5,7 @@ import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import readline from "readline";
 import chalk from "chalk";
 import ora from "ora";
+import { execSync } from "child_process";
 
 puppeteer.use(StealthPlugin());
 
@@ -110,6 +111,14 @@ async function createSession(botName, options = {}) {
     );
   }
 
+  // Kill any leftover Chrome instances before launching
+  try {
+    execSync("pkill -f 'chrome.*remote-debugging'", { stdio: "ignore" });
+    await new Promise(r => setTimeout(r, 500)); // give it a moment to die
+  } catch (_) {
+    // pkill exits with code 1 if no process found — that's fine
+  }
+
   const browser = await puppeteer.launch({
     headless: options.headless ?? false,
     userDataDir: options.profileDir ?? `./profiles/${botName}`,
@@ -123,7 +132,6 @@ async function createSession(botName, options = {}) {
 
   const existingPages = await browser.pages();
   await Promise.all(existingPages.map((p) => p.close()));
-
   const page = await browser.newPage();
 
   // Extra stealth headers
@@ -179,9 +187,9 @@ async function runCLI() {
     output: process.stdout,
   });
 
-  rl.on("close", () => {
+  rl.on("close", async () => {
     console.log(chalk.yellow("\n👋  Bye!"));
-    session.browser.close();
+    await session.browser.close();
     process.exit(0);
   });
 
