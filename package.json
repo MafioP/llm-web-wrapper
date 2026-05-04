@@ -1,0 +1,24 @@
+{
+  "name": "llm-web-wrapper",
+  "version": "1.0.0",
+  "description": "A tool to interact with LLM's UI through puppeteer and avoid API costs",
+  "license": "ISC",
+  "author": "Mario Pereda",
+  "type": "module",
+  "main": "chatbot.js",
+  "scripts": {
+    "start": "node chatbot.js",
+    "chatgpt": "node chatbot.js chatgpt",
+    "claude": "node chatbot.js claude",
+    "gemini": "node chatbot.js gemini",
+    "headless": "node chatbot.js chatgpt --headless",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "chalk": "^5.6.2",
+    "ora": "^9.4.0",
+    "puppeteer": "^24.42.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  }
+}
