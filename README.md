@@ -15,9 +15,9 @@ npm install
 npm start
 
 # Start with a specific bot
-npm run claude
-npm run chatgpt
-npm run gemini
+npm run cli:claude
+npm run cli:chatgpt
+npm run cli:gemini
 
 # Or directly:
 node chatbot.js claude
