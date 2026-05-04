@@ -19,7 +19,13 @@ const ADAPTERS = {
 
     async typePrompt(page, text) {
       await page.click(this.inputSelector);
-      await page.keyboard.type(text, { delay: randomDelay(10, 20) });
+      await page.evaluate((selector, t) => {
+        const el = document.querySelector(selector);
+        el.focus();
+        // For contenteditable divs (Claude)
+        el.innerText = t;
+        el.dispatchEvent(new InputEvent("input", { bubbles: true, data: t }));
+      }, this.inputSelector, text);
     },
 
     async waitForResponse(page) {
@@ -48,7 +54,13 @@ const ADAPTERS = {
 
     async typePrompt(page, text) {
       await page.click(this.inputSelector);
-      await page.keyboard.type(text, { delay: randomDelay(10, 20) });
+      await page.evaluate((selector, t) => {
+        const el = document.querySelector(selector);
+        el.focus();
+        // For contenteditable divs (Claude)
+        el.innerText = t;
+        el.dispatchEvent(new InputEvent("input", { bubbles: true, data: t }));
+      }, this.inputSelector, text);
     },
 
     async waitForResponse(page) {
@@ -77,9 +89,14 @@ const ADAPTERS = {
 
     async typePrompt(page, text) {
       await page.click(this.inputSelector);
-      await page.keyboard.type(text, { delay: randomDelay(10, 20) });
+      await page.evaluate((selector, t) => {
+        const el = document.querySelector(selector);
+        el.focus();
+        // For contenteditable divs (Claude)
+        el.innerText = t;
+        el.dispatchEvent(new InputEvent("input", { bubbles: true, data: t }));
+      }, this.inputSelector, text);
     },
-
     async waitForResponse(page) {
       await page.waitForSelector(".loading-indicator", { timeout: 10_000 });
       await page.waitForSelector(".loading-indicator", {
