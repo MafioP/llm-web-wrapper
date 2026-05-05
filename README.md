@@ -1,143 +1,238 @@
-# 🤖 Chatbot CLI
+# 🤖 llm-web-wrapper
 
-Puppeteer-powered terminal interface for chatting with AI chatbots (ChatGPT, Claude, Gemini) — with stealth mode to avoid bot detection.
+Puppeteer-powered interface for chatting with AI chatbots (ChatGPT, Claude, Gemini) — with stealth mode, a REST API server, and a terminal CLI.
 
 ## Setup
 
 ```bash
 npm install
+cp .env.example .env
 ```
 
-## Usage
+---
+
+## Deployment (Docker + linux server)
+
+### 1. Run the deploy script
+
+The deploy script installs all dependencies (Xvfb, x11vnc, Docker), sets up systemd services for the virtual display, and builds and starts the container.
+
+```bash
+chmod +x deploy.sh
+bash deploy.sh
+```
+
+At the end it prints your API URL and VNC address.
+
+### 2. Log in to each bot via VNC
+
+Since Cloudflare blocks headless browsers, the container runs against a virtual display (Xvfb) that looks like a real headed browser. You need to log in to each bot once so the session is saved.
+
+Connect to the VNC server from your machine using any VNC client (RealVNC, TigerVNC, etc.):
+
+```
+<your-lxc-ip>:5900
+```
+
+Once connected, open Chromium on the virtual display:
+
+```bash
+DISPLAY=:99 chromium --no-sandbox &
+```
+
+Then for each bot:
+
+1. Go to the bot's URL (`https://chatgpt.com`, `https://claude.ai`, `https://gemini.google.com`)
+2. Solve any Cloudflare challenge
+3. Log in normally
+4. Close Chromium
+
+### 3. Copy the saved profiles
+
+```bash
+cp -r ~/.config/chromium/Default ./profiles/chatgpt
+cp -r ~/.config/chromium/Default ./profiles/claude
+cp -r ~/.config/chromium/Default ./profiles/gemini
+```
+
+### 4. Restart the container
+
+```bash
+docker compose restart
+```
+
+The container will now use the saved sessions — no login or Cloudflare challenge needed on future restarts.
+
+### Useful commands
+
+```bash
+# View logs
+docker compose logs -f
+
+# Restart
+docker compose restart
+
+# Stop
+docker compose down
+
+# Rebuild after code changes
+docker compose build --no-cache && docker compose up -d
+
+# Clear Singleton locks manually if needed
+rm -f profiles/*/Singleton*
+```
+
+---
+
+## API Server
+
+```bash
+# local development
+npm start
+# → http://localhost:3000
+```
+
+### Endpoints
+
+| Method | Path | Body | Description |
+|---|---|---|---|
+| `GET` | `/health` | — | Health check |
+| `GET` | `/api/bots` | — | List available bots |
+| `GET` | `/api/sessions` | — | List active sessions |
+| `POST` | `/api/sessions/:bot` | — | Start a session |
+| `DELETE` | `/api/sessions/:bot` | — | Destroy a session |
+| `DELETE` | `/api/sessions` | — | Destroy all sessions |
+| `POST` | `/api/prompt` | `{ bot, message }` | Send a prompt |
+
+### Example
+
+```bash
+# Send a prompt
+curl -X POST http://localhost:3000/api/prompt \
+  -H "Content-Type: application/json" \
+  -d '{ "bot": "chatgpt", "message": "What is the capital of France?" }'
+
+# Response
+{ "ok": true, "bot": "chatgpt", "response": "The capital of France is Paris." }
+```
+
+```js
+// JavaScript fetch
+const res = await fetch("http://localhost:3000/api/prompt", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ bot: "chatgpt", message: "Hello!" }),
+});
+const { response } = await res.json();
+```
+
+---
+
+## CLI
 
 ```bash
 # Start with ChatGPT (default)
-npm start
+npm run cli
 
 # Start with a specific bot
-npm run cli:claude
 npm run cli:chatgpt
+npm run cli:claude
 npm run cli:gemini
 
-# Or directly:
-node chatbot.js claude
-node chatbot.js chatgpt --headless
+# Headless (requires saved session in profiles/)
+node cli.js chatgpt --headless
 ```
 
-## First run — logging in
-
-The browser opens in **headed mode** by default and saves your session to `./profiles/<botname>/`. On first launch:
-
-1. The browser window opens
-2. Log in normally in the browser
-3. Come back to the terminal and start typing prompts
-4. Your session is saved — next launches skip login
-
-## Terminal commands
+### Commands
 
 | Command | Action |
 |---|---|
 | `(any text)` | Send as a prompt to the current bot |
-| `/bot chatgpt` | Switch to ChatGPT mid-session |
-| `/bot claude` | Switch to Claude mid-session |
-| `/bot gemini` | Switch to Gemini mid-session |
+| `/bot <name>` | Switch bot mid-session |
 | `/clear` | Clear the terminal |
 | `/exit` | Close browser and quit |
 
-## Options
+---
 
-| Flag | Effect |
-|---|---|
-| `--headless` | Run browser invisibly (requires saved session) |
+## Configuration — `.env`
 
-## Supported bots
+```bash
+PORT=3000
+HEADLESS=false   # always false when using Xvfb
+```
 
-| Name | URL |
-|---|---|
-| `chatgpt` | chatgpt.com |
-| `claude` | claude.ai |
-| `gemini` | gemini.google.com |
+---
+
+## Project structure
+
+```
+llm-web-wrapper/
+├── src/
+│   ├── server.js          # Express app and graceful shutdown
+│   ├── router.js          # API route definitions
+│   ├── sessionManager.js  # browser lifecycle, one session per bot
+│   ├── queue.js           # per-bot request queue
+│   └── adapters/
+│       ├── base.js        # shared interface and typePrompt/submitPrompt
+│       ├── index.js       # adapter registry
+│       ├── claude.js
+│       ├── chatgpt.js
+│       └── gemini.js
+├── cli.js                 # terminal IO entry point
+├── deploy.sh              # LXC deployment script
+├── Dockerfile
+├── docker-compose.yml
+├── profiles/              # saved browser sessions (gitignored)
+├── .env
+└── package.json
+```
+
+---
 
 ## Adding a new bot
 
-Add an entry to the `ADAPTERS` object in `chatbot.js`:
+Create a new file in `src/adapters/`:
 
 ```js
-mybот: {
-  url: "https://example-chatbot.com",
-  inputSelector: "textarea#input",
-  submitSelector: 'button[type="submit"]',
+// src/adapters/mybot.js
+import { BaseAdapter } from "./base.js";
 
-  async typePrompt(page, text) {
-    await page.click(this.inputSelector);
-    await page.keyboard.type(text, { delay: 15 });
-  },
+export class MyBotAdapter extends BaseAdapter {
+  url = "https://example-chatbot.com";
+  inputSelector = "textarea#input";
+  submitSelector = 'button[type="submit"]';
 
   async waitForResponse(page) {
     await page.waitForSelector(".loading", { timeout: 10_000 });
     await page.waitForSelector(".loading", { hidden: true, timeout: 120_000 });
-  },
+  }
 
   async extractResponse(page) {
-    const msgs = await page.$$eval(".response", els => els.map(e => e.innerText));
-    return msgs.at(-1) ?? "";
-  },
-},
+    const msgs = await page.$$eval(".response", (els) =>
+      els.map((e) => e.innerText.trim())
+    );
+    return msgs.at(-1) ?? "(no response found)";
+  }
+}
 ```
 
-## Notes
+Then register it in `src/adapters/index.js`:
 
-- Selectors may break when chatbot UIs update — inspect the DOM and update selectors if needed
-- Add delays between rapid prompts to avoid rate limits
-- `puppeteer-extra-plugin-stealth` patches ~20 browser fingerprinting vectors
+```js
+import { MyBotAdapter } from "./mybot.js";
+
+export const ADAPTERS = {
+  // ...existing adapters
+  mybot: new MyBotAdapter(),
+};
+```
 
 ---
 
-## Docker deployment
+## Notes
 
-### Prerequisites
-
-Before running in Docker you need saved login sessions, since there is no display available. Run locally first for each bot you want to use:
-
-```bash
-HEADLESS=false node cli.js chatgpt
-# log in, then /exit
-HEADLESS=false node cli.js claude
-# log in, then /exit
-```
-
-This saves sessions to `./profiles/` which is mounted into the container.
-
-### Build and run
-
-```bash
-docker compose up --build
-```
-
-### Run in background
-
-```bash
-docker compose up --build -d
-
-# Check logs
-docker compose logs -f
-
-# Stop
-docker compose down
-```
-
-### Configuration
-
-Set environment variables in `docker-compose.yml` or a `.env` file alongside it:
-
-```bash
-PORT=3000       # host port to expose
-```
-
-`HEADLESS` is always forced to `true` inside the container — there is no display.
-
-### Notes
-
-- `./profiles/` is mounted as a volume so login sessions survive restarts
-- Chromium uses system shared memory — the `shm_size: 1gb` in the compose file prevents random crashes
-- The container uses the system-installed Chromium rather than Puppeteer's bundled one, keeping the image smaller
+- Selectors may break when chatbot UIs update — inspect the DOM and update them if needed
+- Concurrent requests to the same bot are queued automatically
+- Singleton lock files are cleared automatically on every container start
+- The virtual display (Xvfb) makes the browser appear headed to Cloudflare without needing a real monitor
+- `puppeteer-extra-plugin-stealth` patches ~20 browser fingerprinting vectors
