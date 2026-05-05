@@ -28,14 +28,34 @@ echo "╚═══════════════════════�
 echo -e "${NC}"
 
 # ─── 1. Dependencies ─────────────────────────────────────────────────────────
-info "Installing dependencies..."
-apt update -qq
-apt install -y -qq \
-  xvfb \
-  x11vnc \
-  chromium \
-  curl
-success "Dependencies installed"
+info "Checking dependencies..."
+apt-get update -qq
+
+# Install only missing packages
+PACKAGES=(xvfb x11vnc chromium curl)
+MISSING=()
+for pkg in "${PACKAGES[@]}"; do
+  if ! dpkg -s "$pkg" &>/dev/null; then
+    MISSING+=("$pkg")
+  fi
+done
+
+if [ ${#MISSING[@]} -gt 0 ]; then
+  info "Installing: ${MISSING[*]}"
+  apt-get install -y -qq "${MISSING[@]}"
+  success "Packages installed"
+else
+  success "All packages already installed"
+fi
+
+# Docker — never reinstall if already present, it can wipe existing containers
+if command -v docker &>/dev/null; then
+  success "Docker already installed — skipping"
+else
+  info "Installing Docker..."
+  apt-get install -y -qq docker.io docker-compose-plugin
+  success "Docker installed"
+fi
 
 # ─── 2. Xvfb systemd service ─────────────────────────────────────────────────
 info "Setting up Xvfb systemd service..."
