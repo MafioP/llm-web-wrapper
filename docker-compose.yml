@@ -5,9 +5,11 @@ services:
       - "${PORT:-3000}:3000"
     environment:
       - PORT=3000
-      - HEADLESS=true        # must be true in Docker — no display
+      - HEADLESS=false
+      - DISPLAY=:99
     volumes:
-      - ./profiles:/app/profiles  # persist login sessions across restarts
+      - ./profiles:/app/profiles
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    entrypoint: sh -c "rm -f /app/profiles/*/Singleton* && node src/server.js"
     restart: unless-stopped
-    shm_size: 1gb             # Chromium needs extra shared memory
-
+    shm_size: 1gb
