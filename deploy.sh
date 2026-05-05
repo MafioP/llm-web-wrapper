@@ -29,13 +29,11 @@ echo -e "${NC}"
 
 # ─── 1. Dependencies ─────────────────────────────────────────────────────────
 info "Installing dependencies..."
-apt-get update -qq
-apt-get install -y -qq \
+apt update -qq
+apt install -y -qq \
   xvfb \
   x11vnc \
   chromium \
-  docker.io \
-  docker-compose-plugin \
   curl
 success "Dependencies installed"
 
