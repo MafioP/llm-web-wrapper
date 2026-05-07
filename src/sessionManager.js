@@ -74,7 +74,7 @@ export async function createSession(botName, options = {}) {
   });
   await page.goto(adapter.url, { waitUntil: "networkidle2", timeout: 30_000 });
 
-  const session = { browser, page, adapter, botName };
+  const session = { browser, page, adapter, botName, messageCount: 0 };
   sessions.set(botName, session);
   return session;
 }
@@ -99,6 +99,12 @@ export function getActiveSessions() {
 export async function sendPrompt(botName, promptText) {
   const session = await getSession(botName);
   const { page, adapter } = session;
+  session.messageCount++;
+  if (session.messageCount >= 50) {
+    console.warn(`[${botName}] Message limit reached — resetting conversation`);
+    await page.goto(adapter.url, { waitUntil: "domcontentloaded", timeout: 30_000 });
+    session.messageCount = 0;
+  }
 
   await page.waitForSelector(adapter.inputSelector, { timeout: 15_000 });
   await adapter.typePrompt(page, promptText);
