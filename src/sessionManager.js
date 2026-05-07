@@ -6,6 +6,9 @@ import { getAdapter } from "./adapters/index.js";
 
 puppeteer.use(StealthPlugin());
 
+const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const idleTimers = new Map();
+
 const LAUNCH_ARGS = [
   "--no-sandbox",
   "--disable-setuid-sandbox",
@@ -96,8 +99,20 @@ export function getActiveSessions() {
   return [...sessions.keys()];
 }
 
+function resetIdleTimer(botName) {
+  if (idleTimers.has(botName)) clearTimeout(idleTimers.get(botName));
+  idleTimers.set(
+    botName,
+    setTimeout(async () => {
+      console.log(`[${botName}] Idle timeout — closing session`);
+      await destroySession(botName);
+    }, IDLE_TIMEOUT_MS)
+  );
+}
+
 export async function sendPrompt(botName, promptText) {
   const session = await getSession(botName);
+  resetIdleTimer(botName);
   const { page, adapter } = session;
   session.messageCount++;
   if (session.messageCount >= 50) {
