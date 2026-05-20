@@ -71,7 +71,7 @@ router.post("/prompt", async (req, res) => {
   }
 
   try {
-    const response = await enqueue(bot, () => sendPrompt(bot, message));
+    const response = await sendPrompt(bot, message);
     res.json({ ok: true, bot, response });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });

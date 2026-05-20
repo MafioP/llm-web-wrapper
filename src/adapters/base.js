@@ -12,6 +12,13 @@ export class BaseAdapter {
   inputSelector = null;
   submitSelector = null;
 
+  async submitPrompt(page, selector) {
+    await page.evaluate((sel) => {
+      document.querySelector(sel).dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true })
+      );
+    }, selector);
+  }
   async typePrompt(page, text) {
     await page.click(this.inputSelector);
     await page.evaluate((selector, t) => {

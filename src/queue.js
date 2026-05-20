@@ -6,7 +6,9 @@ const queues = new Map(); // botName → Promise (tail of the chain)
 export function enqueue(botName, sessionIndex, fn) {
   const key = `${botName}:${sessionIndex}`;
   const prev = queues.get(key) ?? Promise.resolve();
-  const next = prev.then(fn).catch((err) => { throw err; });
+
+  const next = prev.then(() => fn()); // ← call fn() explicitly, ignore prev value
+
   queues.set(key, next.catch(() => { }));
   return next;
 }

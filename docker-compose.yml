@@ -2,7 +2,7 @@ services:
   llm-web-wrapper:
     build: .
     ports:
-      - "${PORT:-3000}:3000"
+      - "6011:3000"
     environment:
       - PORT=3000
       - HEADLESS=false
