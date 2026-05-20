@@ -7,6 +7,7 @@ services:
       - PORT=3000
       - HEADLESS=false
       - DISPLAY=:99
+      - POOL_SIZE=3
     volumes:
       - ./profiles:/app/profiles
       - /tmp/.X11-unix:/tmp/.X11-unix

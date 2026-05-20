@@ -116,9 +116,11 @@ success "x11vnc running on port 5900"
 
 # ─── 4. Profile directories ───────────────────────────────────────────────────
 info "Creating profile directories..."
-mkdir -p "${APP_DIR}/profiles/chatgpt"
-mkdir -p "${APP_DIR}/profiles/claude"
-mkdir -p "${APP_DIR}/profiles/gemini"
+for i in $(seq 0 $((POOL_SIZE - 1))); do
+  mkdir -p "${APP_DIR}/profiles/chatgpt-${i}"
+  mkdir -p "${APP_DIR}/profiles/claude-${i}"
+  mkdir -p "${APP_DIR}/profiles/gemini-${i}"
+done
 success "Profile directories ready"
 
 # ─── 5. .env ─────────────────────────────────────────────────────────────────
