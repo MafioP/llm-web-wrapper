@@ -3,19 +3,10 @@
 
 const queues = new Map(); // botName → Promise (tail of the chain)
 
-export function enqueue(botName, fn) {
-  const prev = queues.get(botName) ?? Promise.resolve();
-
-  const next = prev.then(fn).catch((err) => {
-    // Don't let one failed request break the queue chain
-    throw err;
-  });
-
-  // Store the "settled" tail so the queue doesn't grow forever
-  queues.set(
-    botName,
-    next.catch(() => {})
-  );
-
+export function enqueue(botName, sessionIndex, fn) {
+  const key = `${botName}:${sessionIndex}`;
+  const prev = queues.get(key) ?? Promise.resolve();
+  const next = prev.then(fn).catch((err) => { throw err; });
+  queues.set(key, next.catch(() => { }));
   return next;
 }

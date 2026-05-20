@@ -17,7 +17,13 @@ const LAUNCH_ARGS = [
   "--disable-backgrounding-occluded-windows",
   "--disable-renderer-backgrounding",
 ];
+const POOL_SIZE = parseInt(process.env.POOL_SIZE ?? "3");
 
+// botName → Session[]
+const pools = new Map();
+
+// botName → index (round robin counter)
+const counters = new Map();
 // botName → { browser, page, adapter, botName }
 const sessions = new Map();
 
@@ -45,7 +51,7 @@ export async function createSession(botName, options = {}) {
   await destroySession(botName);
 
   const headless = options.headless ?? (process.env.HEADLESS === "true");
-  const profileDir = options.profileDir ?? `./profiles/${botName}`;
+  const profileDir = options.profileDir ?? `./profiles/${botName}-${index}`;
   clearProfileLocks(profileDir);
 
   const browser = await puppeteer.launch({
@@ -83,20 +89,22 @@ export async function createSession(botName, options = {}) {
 }
 
 export async function destroySession(botName) {
-  if (!sessions.has(botName)) return;
-  const { browser } = sessions.get(botName);
-  sessions.delete(botName);
-  try {
-    await browser.close();
-  } catch (_) { }
+  if (!pools.has(botName)) return;
+  const pool = pools.get(botName);
+  pools.delete(botName);
+  counters.delete(botName);
+  await Promise.all(pool.map((s) => s.browser.close().catch(() => { })));
 }
 
 export async function destroyAllSessions() {
-  await Promise.all([...sessions.keys()].map(destroySession));
+  await Promise.all([...pools.keys()].map(destroySession));
 }
 
 export function getActiveSessions() {
-  return [...sessions.keys()];
+  return [...pools.entries()].map(([bot, pool]) => ({
+    bot,
+    sessions: pool.length,
+  }));
 }
 
 function resetIdleTimer(botName) {
@@ -111,37 +119,74 @@ function resetIdleTimer(botName) {
 }
 
 export async function sendPrompt(botName, promptText) {
-  const session = await getSession(botName);
-  resetIdleTimer(botName);
-  const { page, adapter } = session;
-  session.messageCount++;
-  if (session.messageCount >= 50) {
-    console.warn(`[${botName}] Message limit reached — resetting conversation`);
-    await page.goto(adapter.url, { waitUntil: "domcontentloaded", timeout: 30_000 });
-    session.messageCount = 0;
+  const pool = await getPool(botName);
+  const index = counters.get(botName) % pool.length;
+  counters.set(botName, index + 1);
+
+  return enqueue(botName, index, async () => {
+    const session = pool[index];
+    const { page, adapter } = session;
+
+    resetIdleTimer(botName);
+
+    // reset conversation every 50 messages
+    session.messageCount = (session.messageCount ?? 0) + 1;
+    if (session.messageCount >= 50) {
+      console.warn(`[${botName}:${index}] Message limit reached — resetting conversation`);
+      await page.goto(adapter.url, { waitUntil: "domcontentloaded", timeout: 30_000 });
+      session.messageCount = 0;
+    }
+
+    await page.waitForSelector(adapter.inputSelector, { timeout: 15_000 });
+    await adapter.typePrompt(page, promptText);
+    await page.waitForSelector(adapter.submitSelector, { timeout: 5_000 });
+    await adapter.submitPrompt(page, adapter.submitSelector);
+    await adapter.waitForResponse(page);
+
+    let response = await adapter.extractResponse(page);
+
+    // empty response fallback — start fresh and retry once
+    if (!response) {
+      console.warn(`[${botName}:${index}] Empty response — retrying with fresh conversation`);
+      await page.goto(adapter.url, { waitUntil: "domcontentloaded", timeout: 30_000 });
+      session.messageCount = 0;
+      await page.waitForSelector(adapter.inputSelector, { timeout: 15_000 });
+      await adapter.typePrompt(page, promptText);
+      await page.waitForSelector(adapter.submitSelector, { timeout: 5_000 });
+      await adapter.submitPrompt(page, adapter.submitSelector);
+      await adapter.waitForResponse(page);
+      response = await adapter.extractResponse(page);
+    }
+
+    return response ?? "(no response found)";
+  });
+}
+async function getPool(botName) {
+  if (!pools.has(botName)) {
+    console.log(`[${botName}] Initializing pool of ${POOL_SIZE} sessions...`);
+    const sessions = await Promise.all(
+      Array.from({ length: POOL_SIZE }, () => createSession(botName))
+    );
+    pools.set(botName, sessions);
+    counters.set(botName, 0);
   }
-
-  await page.waitForSelector(adapter.inputSelector, { timeout: 15_000 });
-  await adapter.typePrompt(page, promptText);
-
-  await page.waitForSelector(adapter.submitSelector, { timeout: 5_000 });
-  await page.click(adapter.submitSelector);
-
-  await adapter.waitForResponse(page);
-  return adapter.extractResponse(page);
+  return pools.get(botName);
 }
 
 export async function getSession(botName) {
-  if (sessions.has(botName)) {
-    const session = sessions.get(botName);
-    // Check the browser is still alive
-    try {
-      await session.browser.version();
-      return session;
-    } catch (_) {
-      // Browser is dead — recreate
-      sessions.delete(botName);
-    }
+  const pool = await getPool(botName);
+
+  // round robin across the pool
+  const index = counters.get(botName) % pool.length;
+  counters.set(botName, index + 1);
+
+  // health check — replace dead sessions
+  try {
+    await pool[index].browser.version();
+  } catch (_) {
+    console.warn(`[${botName}] Session ${index} dead — recreating`);
+    pool[index] = await createSession(botName);
   }
-  return createSession(botName);
+
+  return pool[index];
 }
